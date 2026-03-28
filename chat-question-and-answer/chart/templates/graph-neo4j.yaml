@@ -1,0 +1,92 @@
+{{- if .Values.graph.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.graph.neo4j.name }}
+  labels:
+    {{- include "chatqna-helm-chart.labels" . | nindent 4 }}
+    app: {{ .Values.graph.neo4j.name }}
+spec:
+  type: {{ .Values.graph.neo4j.service.type }}
+  selector:
+    app: {{ .Values.graph.neo4j.name }}
+  ports:
+    - name: http
+      port: {{ .Values.graph.neo4j.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: bolt
+      port: {{ .Values.graph.neo4j.service.boltPort }}
+      targetPort: bolt
+      protocol: TCP
+---
+{{- if .Values.graph.neo4j.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.graph.neo4j.name }}-data
+  labels:
+    {{- include "chatqna-helm-chart.labels" . | nindent 4 }}
+    app: {{ .Values.graph.neo4j.name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.graph.neo4j.persistence.storageClassName }}
+  storageClassName: {{ .Values.graph.neo4j.persistence.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.graph.neo4j.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.graph.neo4j.name }}
+  labels:
+    {{- include "chatqna-helm-chart.labels" . | nindent 4 }}
+    app: {{ .Values.graph.neo4j.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.graph.neo4j.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.graph.neo4j.name }}
+    spec:
+      containers:
+        - name: neo4j
+          image: {{ .Values.graph.neo4j.image.repository }}:{{ .Values.graph.neo4j.image.tag }}
+          imagePullPolicy: {{ .Values.graph.neo4j.image.pullPolicy }}
+          env:
+            - name: NEO4J_AUTH
+              value: {{ .Values.graph.neo4j.auth.user }}/{{ .Values.graph.neo4j.auth.password }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.graph.neo4j.service.httpPort }}
+            - name: bolt
+              containerPort: {{ .Values.graph.neo4j.service.boltPort }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: bolt
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - name: neo4j-data
+              mountPath: /data
+      volumes:
+        - name: neo4j-data
+          {{- if .Values.graph.neo4j.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.graph.neo4j.name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}

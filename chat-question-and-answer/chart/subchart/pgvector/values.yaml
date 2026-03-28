@@ -1,0 +1,20 @@
+global:
+  proxy:
+    no_proxy: 
+    http_proxy: 
+    https_proxy: 
+  POSTGRES_USER: 
+  POSTGRES_PASSWORD: 
+
+pgvectorContainer:
+  name: pgvector
+  image:
+    repository: pgvector/pgvector
+    tag: pg16
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  env:
+    POSTGRES_DB: langchain
